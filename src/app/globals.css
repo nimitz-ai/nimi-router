@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #09090b;
+  color: #e4e4e7;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.card {
+  @apply rounded-xl border border-zinc-800 bg-panel p-5;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-50;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-50;
+}
+
+.input {
+  @apply w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-accent;
+}
+
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-400;
+}
+
+.navlink {
+  @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100;
+}
+
+.navlink-active {
+  @apply bg-zinc-800 text-white;
+}
+
+code.inline {
+  @apply rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-xs text-emerald-300;
+}
+
+pre.code {
+  @apply overflow-x-auto rounded-lg border border-zinc-800 bg-black p-4 font-mono text-xs leading-relaxed text-zinc-300;
+}
