@@ -1,74 +1,158 @@
-// In-memory request stats. On Vercel serverless this is per-instance
-// (resets on cold start) — good enough for a live dashboard overview.
-// For persistent analytics, plug in an external store later.
+// In-memory request stats, per API key with token usage.
+// On Vercel serverless this is per-instance (resets on cold start).
+// Raw keys never leave the server: pages mask them before rendering.
+
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
 
 export interface RequestLog {
   time: string;
   model: string;
   provider: string;
+  keyMasked: string;
   success: boolean;
   latencyMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
   error?: string;
 }
 
-interface ProviderCounters {
+export interface KeyStat {
+  provider: string;
+  /** Raw key — mask before rendering. Only used in server components. */
+  key: string;
   requests: number;
   success: number;
   failed: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  avgLatencyMs: number;
+  lastError?: string;
+}
+
+interface Counters {
+  requests: number;
+  success: number;
+  failed: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
   totalLatencyMs: number;
+  lastError?: string;
 }
 
 const MAX_LOGS = 100;
 const recent: RequestLog[] = [];
-const counters = new Map<string, ProviderCounters>();
+const byKey = new Map<string, Counters>(); // `${provider}::${rawKey}`
 let totalRequests = 0;
 
-function bump(provider: string, success: boolean, latencyMs: number) {
-  let c = counters.get(provider);
+function mapKey(provider: string, rawKey: string): string {
+  return `${provider}::${rawKey}`;
+}
+
+function entry(provider: string, rawKey: string): Counters {
+  const k = mapKey(provider, rawKey);
+  let c = byKey.get(k);
   if (!c) {
-    c = { requests: 0, success: 0, failed: 0, totalLatencyMs: 0 };
-    counters.set(provider, c);
+    c = {
+      requests: 0, success: 0, failed: 0,
+      promptTokens: 0, completionTokens: 0, totalTokens: 0,
+      totalLatencyMs: 0,
+    };
+    byKey.set(k, c);
   }
+  return c;
+}
+
+export function recordRequest(log: Omit<RequestLog, "keyMasked"> & { key: string; keyMasked: string }) {
+  const { key, ...rest } = log;
+  recent.unshift(rest);
+  if (recent.length > MAX_LOGS) recent.pop();
+  const c = entry(log.provider, key);
   c.requests += 1;
-  c.totalLatencyMs += latencyMs;
-  if (success) c.success += 1;
-  else c.failed += 1;
+  c.totalLatencyMs += log.latencyMs;
+  c.promptTokens += log.promptTokens;
+  c.completionTokens += log.completionTokens;
+  c.totalTokens += log.totalTokens;
+  if (log.success) c.success += 1;
+  else {
+    c.failed += 1;
+    if (log.error) c.lastError = log.error;
+  }
   totalRequests += 1;
 }
 
-export function recordRequest(log: RequestLog) {
-  recent.unshift(log);
-  if (recent.length > MAX_LOGS) recent.pop();
-  bump(log.provider, log.success, log.latencyMs);
+/** Add token usage discovered after the request was recorded (streaming). */
+export function addTokens(provider: string, rawKey: string, u: TokenUsage) {
+  const c = entry(provider, rawKey);
+  c.promptTokens += u.prompt_tokens || 0;
+  c.completionTokens += u.completion_tokens || 0;
+  c.totalTokens += u.total_tokens || 0;
 }
 
 export interface StatsSnapshot {
   totalRequests: number;
   successRate: number;
   avgLatencyMs: number;
-  providers: { name: string; requests: number; success: number; failed: number; avgLatencyMs: number }[];
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  keys: KeyStat[];
+  providers: { name: string; requests: number; success: number; failed: number; totalTokens: number }[];
   recent: RequestLog[];
 }
 
 export function getStats(): StatsSnapshot {
   let ok = 0;
   let lat = 0;
-  const providers = [...counters.entries()].map(([name, c]) => {
+  let pt = 0;
+  let ct = 0;
+  let tt = 0;
+  const provAgg = new Map<string, { requests: number; success: number; failed: number; totalTokens: number }>();
+
+  const keys: KeyStat[] = [...byKey.entries()].map(([k, c]) => {
+    const sep = k.indexOf("::");
+    const provider = k.slice(0, sep);
+    const key = k.slice(sep + 2);
     ok += c.success;
     lat += c.totalLatencyMs;
+    pt += c.promptTokens;
+    ct += c.completionTokens;
+    tt += c.totalTokens;
+    const agg = provAgg.get(provider) ?? { requests: 0, success: 0, failed: 0, totalTokens: 0 };
+    agg.requests += c.requests;
+    agg.success += c.success;
+    agg.failed += c.failed;
+    agg.totalTokens += c.totalTokens;
+    provAgg.set(provider, agg);
     return {
-      name,
+      provider,
+      key,
       requests: c.requests,
       success: c.success,
       failed: c.failed,
+      promptTokens: c.promptTokens,
+      completionTokens: c.completionTokens,
+      totalTokens: c.totalTokens,
       avgLatencyMs: c.requests ? Math.round(c.totalLatencyMs / c.requests) : 0,
+      lastError: c.lastError,
     };
   });
+
   return {
     totalRequests,
     successRate: totalRequests ? Math.round((ok / totalRequests) * 100) : 100,
     avgLatencyMs: totalRequests ? Math.round(lat / totalRequests) : 0,
-    providers,
+    promptTokens: pt,
+    completionTokens: ct,
+    totalTokens: tt,
+    keys,
+    providers: [...provAgg.entries()].map(([name, a]) => ({ name, ...a })),
     recent: [...recent],
   };
 }

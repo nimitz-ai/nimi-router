@@ -19,10 +19,10 @@ export async function GET(req: Request) {
   await Promise.all(
     providers.map(async (p) => {
       if (p.models.includes("*")) {
-        // Discover the provider's own model catalogue.
+        // Discover the provider's own model catalogue (using its first key).
         try {
           const res = await fetch(`${p.baseUrl}/models`, {
-            headers: { Authorization: `Bearer ${p.apiKey}` },
+            headers: { Authorization: `Bearer ${p.apiKeys[0]}` },
           });
           if (res.ok) {
             const data = await res.json();

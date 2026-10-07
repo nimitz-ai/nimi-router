@@ -4,7 +4,8 @@
 export interface ProviderConfig {
   name: string;
   baseUrl: string;
-  apiKey: string;
+  /** One or more API keys — requests rotate across them (round-robin). */
+  apiKeys: string[];
   /** Explicit model list, or ["*"] to accept any model (passthrough). */
   models: string[];
   /** Lower = tried first. */
@@ -19,15 +20,23 @@ function parseProviders(): ProviderConfig[] {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return [];
     return arr
-      .map((p: Record<string, unknown>, i: number) => ({
-        name: String(p.name || `provider-${i + 1}`),
-        baseUrl: String(p.baseUrl || "").replace(/\/+$/, ""),
-        apiKey: String(p.apiKey || ""),
-        models: Array.isArray(p.models) && p.models.length > 0 ? (p.models as string[]) : ["*"],
-        priority: typeof p.priority === "number" ? p.priority : i,
-        enabled: p.enabled !== false,
-      }))
-      .filter((p) => p.baseUrl && p.apiKey)
+      .map((p: Record<string, unknown>, i: number) => {
+        // Accept `apiKeys: [...]` or legacy `apiKey: "..."`.
+        const keys = Array.isArray(p.apiKeys)
+          ? (p.apiKeys as unknown[]).map(String).filter(Boolean)
+          : p.apiKey
+            ? [String(p.apiKey)]
+            : [];
+        return {
+          name: String(p.name || `provider-${i + 1}`),
+          baseUrl: String(p.baseUrl || "").replace(/\/+$/, ""),
+          apiKeys: [...new Set(keys)],
+          models: Array.isArray(p.models) && p.models.length > 0 ? (p.models as string[]) : ["*"],
+          priority: typeof p.priority === "number" ? p.priority : i,
+          enabled: p.enabled !== false,
+        };
+      })
+      .filter((p) => p.baseUrl && p.apiKeys.length > 0)
       .sort((a, b) => a.priority - b.priority);
   } catch {
     return [];

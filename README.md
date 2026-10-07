@@ -6,9 +6,11 @@ OpenAI-compatible API with **smart fallback** across multiple providers, deploya
 ## Features
 
 - 🔀 **Smart fallback** — providers tried in priority order; on 429 / 5xx / network error / bad key, the router automatically moves to the next provider
+- 🔑 **Multi-key per provider** — each provider can hold many API keys; requests rotate round-robin across keys, and a key that errors is cooled down automatically (429 → 60s, 401/403 → 5min)
+- 📊 **Token usage logs** — prompt/completion/total tokens tracked per key, including streaming responses (via `stream_options: {include_usage: true}`)
 - 🔌 **OpenAI-compatible API** — `POST /api/v1/chat/completions` (streaming SSE supported) and `GET /api/v1/models` work with any OpenAI client/SDK
-- 📊 **Dashboard** — provider status, request stats, recent-request log, live playground
-- 🔑 **API key auth** for the router API + optional password lock for the dashboard
+- 📈 **Dashboard** — provider status with per-key stats, request log, live playground
+- 🔐 **API key auth** for the router API + optional password lock for the dashboard
 - ☁️ **Vercel-ready** — config via environment variables, no database needed
 - 🌐 **Any OpenAI-compatible provider** — OpenAI, OpenRouter, DeepSeek, GLM, Moonshot, Groq, Together, Ollama, …
 
@@ -34,13 +36,14 @@ Provider entry:
 {
   "name": "OpenRouter",
   "baseUrl": "https://openrouter.ai/api/v1",
-  "apiKey": "sk-or-...",
+  "apiKeys": ["sk-or-aaa", "sk-or-bbb"],
   "models": ["*"],
   "priority": 2,
   "enabled": true
 }
 ```
 
+- `apiKeys`: array of keys — requests rotate round-robin; failing keys cool down automatically. A single `apiKey` string also works.
 - `models: ["*"]` accepts any model name (the router discovers the provider's catalogue for `/v1/models`).
 - Lower `priority` is tried first.
 

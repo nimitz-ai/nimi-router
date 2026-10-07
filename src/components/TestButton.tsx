@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 
+interface KeyResult {
+  key: string;
+  ok: boolean;
+  latencyMs: number;
+  models?: number;
+  error?: string;
+}
+
 export default function TestButton({ index }: { index: number }) {
-  const [state, setState] = useState<"idle" | "loading" | "ok" | "fail">("idle");
-  const [detail, setDetail] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [results, setResults] = useState<KeyResult[]>([]);
 
   async function test() {
     setState("loading");
-    setDetail("");
+    setResults([]);
     try {
       const res = await fetch("/api/providers/test", {
         method: "POST",
@@ -16,26 +24,33 @@ export default function TestButton({ index }: { index: number }) {
         body: JSON.stringify({ index }),
       });
       const data = await res.json();
-      if (data.ok) {
-        setState("ok");
-        setDetail(`${data.latencyMs}ms${data.models != null ? ` · ${data.models} models` : ""}`);
-      } else {
-        setState("fail");
-        setDetail(data.error || "failed");
-      }
-    } catch (e) {
-      setState("fail");
-      setDetail(e instanceof Error ? e.message : "error");
+      setResults(data.results ?? []);
+    } catch {
+      setResults([]);
+    } finally {
+      setState("done");
     }
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col items-end gap-1">
       <button onClick={test} disabled={state === "loading"} className="btn-ghost px-3 py-1 text-xs">
-        {state === "loading" ? "Testing…" : "Test connection"}
+        {state === "loading" ? "Testing…" : "Test keys"}
       </button>
-      {state === "ok" && <span className="text-xs text-emerald-400">✓ {detail}</span>}
-      {state === "fail" && <span className="text-xs text-red-400">✗ {detail}</span>}
+      {state === "done" &&
+        results.map((r) => (
+          <span key={r.key} className="font-mono text-xs">
+            {r.ok ? (
+              <span className="text-emerald-400">
+                ✓ {r.key} · {r.latencyMs}ms{r.models != null ? ` · ${r.models} models` : ""}
+              </span>
+            ) : (
+              <span className="text-red-400">
+                ✗ {r.key} · {r.error}
+              </span>
+            )}
+          </span>
+        ))}
     </div>
   );
 }

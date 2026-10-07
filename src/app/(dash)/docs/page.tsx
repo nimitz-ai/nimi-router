@@ -4,7 +4,7 @@ const PROVIDERS_EXAMPLE = `[
   {
     "name": "OpenAI",
     "baseUrl": "https://api.openai.com/v1",
-    "apiKey": "sk-...",
+    "apiKeys": ["sk-aaa", "sk-bbb", "sk-ccc"],
     "models": ["gpt-4o-mini", "gpt-4o"],
     "priority": 1,
     "enabled": true
@@ -15,14 +15,6 @@ const PROVIDERS_EXAMPLE = `[
     "apiKey": "sk-or-...",
     "models": ["*"],
     "priority": 2,
-    "enabled": true
-  },
-  {
-    "name": "DeepSeek",
-    "baseUrl": "https://api.deepseek.com/v1",
-    "apiKey": "sk-...",
-    "models": ["deepseek-chat", "deepseek-reasoner"],
-    "priority": 3,
     "enabled": true
   }
 ]`;
@@ -69,6 +61,8 @@ export default function DocsPage() {
         <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-zinc-400">
           <li><code className="inline">models: ["*"]</code> accepts any model name (passthrough).</li>
           <li><code className="inline">priority</code>: lower is tried first.</li>
+          <li><code className="inline">apiKeys</code>: multiple keys rotate round-robin; a failing key is cooled down automatically (429 → 60s, 401/403 → 5min). Single <code className="inline">apiKey</code> also works.</li>
+          <li>Token usage (prompt/completion/total) is tracked per key, including streaming.</li>
           <li>Any OpenAI-compatible endpoint works: OpenAI, OpenRouter, DeepSeek, GLM, Moonshot, Groq, Together, Ollama…</li>
         </ul>
       </section>
